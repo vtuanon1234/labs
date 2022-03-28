@@ -1,92 +1,84 @@
-from math import exp
-from random import seed, random
+import numpy as np
 
-def initialize_network(n_inputs, n_hidden, n_outputs):
-    network = list()
-    hidden_layer = [{'weights':[random() for i in range(n_inputs + 1)]} for i in range(n_hidden)]
-    network.append(hidden_layer)
-    output_layer = [{'weights':[random() for i in range(n_hidden + 1)]} for i in range(n_outputs)]
-    network.append(output_layer)
-    return network
+# X is the input, it basically has 2 features
+X = np.array(([2, 9], [1, 5], [3, 6]), dtype = float)
+y = np.array(([92], [86], [89]), dtype = float)
+X = X/np.amax(X,axis=0) # Used to normalize the data. Each number is divided by 9, since it is the max
+y = y/100 
 
-def activate(weights, inputs):
-    activation = weights[-1]
-    for i in range(len(weights)-1):
-        activation += weights[i] * inputs[i]
-    return activation
+# We are trying to get from X to Y
+# X = [0.222, 1], [0.111, 0.555]
+# Y = [0.92], [0.86]
 
-def transfer(activation):
-    return 1.0 / (1.0 + exp(-activation))
+# Sigmoid Function - it is the activation function
+def sigmoid (x):
+    return 1/(1 + np.exp(-x))
 
-def forward_propagate(network, row):
-    inputs = row
-    for layer in network:
-        new_inputs = []
-        for neuron in layer:
-            activation = activate(neuron['weights'], inputs)
-            neuron['output'] = transfer(activation)
-            new_inputs.append(neuron['output'])
-        inputs = new_inputs
-    return inputs
+# Derivative of Sigmoid Function
+def derivatives_sigmoid(x):
+    return x * (1 - x)
 
-def transfer_derivative(output):
-    return output * (1.0 - output)
+# Variable initialization
+epoch = 5 # Setting training iterations
+lr = 0.1 # Setting learning rate
 
-def backward_propagate_error(network, expected):
-    for i in reversed(range(len(network))):
-        layer = network[i]
-        errors = list()
-        if i != len(network)-1:
-            for j in range(len(layer)):
-                error = 0.0
-                for neuron in network[i + 1]:
-                    error += (neuron['weights'][j] * neuron['delta'])
-                    errors.append(error)
-        else:
-            for j in range(len(layer)):
-                neuron = layer[j]
-                errors.append(expected[j] - neuron['output'])
-        for j in range(len(layer)):
-            neuron = layer[j]
-            neuron['delta'] = errors[j] * transfer_derivative(neuron['output'])
+# number of features in data set
+# It is 2 because each list in X has 2 elements
+inputlayer_neurons = 2 
+hiddenlayer_neurons = 3
+# number of neurons at output layer
+# It is 1, because each list in Y has one element
+output_neurons = 1 
 
-def update_weights(network, row, l_rate):
-    for i in range(len(network)):
-        inputs = row[:-1]
-        if i != 0:
-            inputs = [neuron['output'] for neuron in network[i - 1]]
-        for neuron in network[i]:
-            for j in range(len(inputs)):
-                neuron['weights'][j] += l_rate * neuron['delta'] * inputs[j]
-        neuron['weights'][-1] += l_rate * neuron['delta']
+# Weight of hidden layer (input -> hidden)
+wh=np.random.uniform(size=(inputlayer_neurons, hiddenlayer_neurons))
+# Bias of hidden layer 
+bh=np.random.uniform(size=(1, hiddenlayer_neurons))
+# Weight of output layer (hidden -> ouput)
+wout=np.random.uniform(size=(hiddenlayer_neurons, output_neurons))
+# Bias of output layer
+bout=np.random.uniform(size=(1,output_neurons))
 
-def train_network(network, train, l_rate, n_epoch, n_outputs):
-    for epoch in range(n_epoch):
-        sum_error = 0
-        for row in train:
-            outputs = forward_propagate(network, row)
-            expected = [0 for i in range(n_outputs)]
-            expected[row[-1]] = 1
-            
-            sum_error += sum([(expected[i]-outputs[i])**2 for i in range(len(expected))])
-            backward_propagate_error(network, expected)
-            update_weights(network, row, l_rate)
-        print('>epoch=%d, lrate=%.3f, error=%.3f' % (epoch, l_rate, sum_error))
-
-seed(1)
-dataset = [[2.7810836,2.550537003,0],
- [1.465489372,2.362125076,0],
- [3.396561688,4.400293529,0],
- [1.38807019,1.850220317,0],
- [3.06407232,3.005305973,0],
- [7.627531214,2.759262235,1],
- [5.332441248,2.088626775,1],
- [6.922596716,1.77106367,1],
- [8.675418651,-0.242068655,1],
- [7.673756466,3.508563011,1]]
-n_inputs = len(dataset[0]) - 1
-n_outputs = len(set([row[-1] for row in dataset]))
-network = initialize_network(n_inputs, 2, n_outputs)
-train_network(network, dataset, 0.5, 20, n_outputs)
-for layer in network:
-    print(layer)
+# draws a random range of numbers uniformly of dim x*y
+for i in range(epoch):
+    # Forward Propogation
+    # -----------------
+    # Get the dot product of X and the weights of each hidden layer (wh)
+    hinp1=np.dot(X,wh)
+    # Add the bias (bh)
+    hinp=hinp1 + bh
+    # Get the activation of hidden layer using previous input (hinp)
+    hlayer_act = sigmoid(hinp)
+    # Get the input for the output layer, and multiply it with output weights (wout)
+    outinp1 = np.dot(hlayer_act,wout)
+    # Add the bias to this (bout)
+    outinp = outinp1+bout
+    # Activate the output of the output layer
+    output = sigmoid(outinp)
+    
+    # Backpropagation
+    # -------------------
+    # EO = Error of our calculated output. Calculate it by doing Y - output
+    EO = y-output
+    # Calculate gradient of output using sigmoid derivative
+    outgrad = derivatives_sigmoid(output)
+    # Mutliply it with error
+    d_output = EO * outgrad
+    # Error in Hidden layer
+    EH = d_output.dot(wout.T)
+    # Gradient of hidden layer using sigmoid derivative
+    hiddengrad = derivatives_sigmoid(hlayer_act) 
+    d_hiddenlayer = EH * hiddengrad
+    
+    wout += hlayer_act.T.dot(d_output) * lr   # dotproduct of nextlayererror and currentlayerop
+    wh += X.T.dot(d_hiddenlayer) * lr
+    
+    print ("-----------Epoch-", i+1, "Starts----------")
+    print("Input: \n" + str(X)) 
+    print("Actual Output: \n" + str(y))
+    print("Predicted Output: \n" ,output)
+    print ("-----------Epoch-", i+1, "Ends----------\n")
+        
+print("Input: \n" + str(X)) 
+print("Actual Output: \n" + str(y))
+print("Predicted Output: \n" ,output)
